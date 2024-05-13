@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{card::Card, hand::Hand};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ValidHands {
     HighCard(Card),
     Pair(Card, Card),
@@ -60,20 +60,18 @@ impl ValidHands {
 
     pub fn has_pair(hand: Hand) -> Option<(ValidHands, Hand)> {
         let mut working_hand = hand.clone();
+        let iter = working_hand.cards.as_slice().windows(2);
 
-        let mut prev_card = Card::blank();
-
-        for i in 0..hand.cards.len() {
-            if hand.cards[i].value == prev_card.value {
+        for (idx, cards) in iter.enumerate() {
+            if cards[0].value == cards[1].value {
                 return Some((
                     ValidHands::Pair(
-                        working_hand.cards.swap_remove(i),
-                        working_hand.cards.swap_remove(i - 1),
+                        working_hand.cards.remove(idx),
+                        working_hand.cards.remove(idx),
                     ),
-                    working_hand.clone(),
+                    working_hand,
                 ));
             }
-            prev_card = hand.cards[i].clone();
         }
 
         None
@@ -133,9 +131,10 @@ impl ValidHands {
 
     pub fn has_straight(hand: Hand) -> Option<(ValidHands, Hand)> {
         let mut working_hand = hand.clone();
+
+        // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
         working_hand.sort_by_rank_ace_high();
         let iter = working_hand.cards.as_slice().windows(5);
-        // check for all 2-3-4-5-6 + straights
         for (idx, cards) in iter.clone().enumerate() {
             if cards[0].value == cards[1].value + 1
                 && cards[1].value == cards[2].value + 1
@@ -305,6 +304,185 @@ impl ValidHands {
                 ))
             }
             _ => panic!("Unexpected Hand: {confirmed_flush}. Expected: ValidHands::Straight"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{card::Card, hand::Hand, valid_hands::ValidHands};
+
+    // #[test]
+    fn finds_pair() {
+        let mut hand = Hand::of_size(8);
+        let pair_card_a = Card::new("Hearts".into(), "2".into(), 2);
+        let pair_card_b = Card::new("Spades".into(), "2".into(), 2);
+        let cards = vec![
+            pair_card_a.clone(),
+            Card::new("Spades".into(), "3".into(), 3),
+            Card::new("Spades".into(), "4".into(), 4),
+            Card::new("Spades".into(), "5".into(), 5),
+            Card::new("Spades".into(), "6".into(), 6),
+            Card::new("Spades".into(), "7".into(), 7),
+            Card::new("Spades".into(), "8".into(), 8),
+            pair_card_b.clone(),
+        ];
+
+        hand.cards = cards;
+        hand.sort_by_rank_ace_high();
+        if let Some((vh, _)) = ValidHands::has_pair(hand.clone()) {
+            println!("{vh}");
+            assert_eq!(vh, ValidHands::Pair(pair_card_a, pair_card_b));
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn finds_middle_straight_ace_high_ordering() {
+        let mut hand = Hand::of_size(8);
+        let straight_card_a = Card::new("Hearts".into(), "8".into(), 8);
+        let straight_card_b = Card::new("Spades".into(), "7".into(), 7);
+        let straight_card_c = Card::new("Clubs".into(), "6".into(), 6);
+        let straight_card_d = Card::new("Diamonds".into(), "5".into(), 5);
+        let straight_card_e = Card::new("Spades".into(), "4".into(), 4);
+        let cards = vec![
+            straight_card_a.clone(),
+            Card::new("Clubs".into(), "Jack".into(), 11),
+            straight_card_c.clone(),
+            Card::new("Diamonds".into(), "Jack".into(), 11),
+            Card::new("Clubs".into(), "King".into(), 13),
+            straight_card_d.clone(),
+            straight_card_e.clone(),
+            straight_card_b.clone(),
+        ];
+
+        hand.cards = cards;
+        if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
+            println!("{vh}");
+            assert_eq!(
+                vh,
+                ValidHands::Straight(
+                    straight_card_a,
+                    straight_card_b,
+                    straight_card_c,
+                    straight_card_d,
+                    straight_card_e
+                )
+            );
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn finds_ace_high_straight() {
+        let mut hand = Hand::of_size(8);
+        let straight_card_a = Card::new("Hearts".into(), "Ace".into(), 14);
+        let straight_card_b = Card::new("Spades".into(), "King".into(), 13);
+        let straight_card_c = Card::new("Clubs".into(), "Queen".into(), 12);
+        let straight_card_d = Card::new("Diamonds".into(), "Jack".into(), 11);
+        let straight_card_e = Card::new("Spades".into(), "10".into(), 10);
+        let cards = vec![
+            straight_card_a.clone(),
+            Card::new("Clubs".into(), "7".into(), 7),
+            straight_card_c.clone(),
+            Card::new("Clubs".into(), "4".into(), 4),
+            Card::new("Clubs".into(), "3".into(), 3),
+            straight_card_d.clone(),
+            straight_card_e.clone(),
+            straight_card_b.clone(),
+        ];
+
+        hand.cards = cards;
+        if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
+            println!("{vh}");
+            assert_eq!(
+                vh,
+                ValidHands::Straight(
+                    straight_card_a,
+                    straight_card_b,
+                    straight_card_c,
+                    straight_card_d,
+                    straight_card_e
+                )
+            );
+        } else {
+            assert!(false, "{}", format!("No Straight found. Hand: {:?}", hand.cards));
+        }
+    }
+
+    #[test]
+    fn finds_ace_low_straight() {
+        let mut hand = Hand::of_size(8);
+        let straight_card_a = Card::new("Hearts".into(), "Ace".into(), 14);
+        let straight_card_b = Card::new("Spades".into(), "2".into(), 13);
+        let straight_card_c = Card::new("Clubs".into(), "3".into(), 12);
+        let straight_card_d = Card::new("Diamonds".into(), "4".into(), 11);
+        let straight_card_e = Card::new("Spades".into(), "5".into(), 10);
+        let cards = vec![
+            straight_card_a.clone(),
+            Card::new("Clubs".into(), "7".into(), 7),
+            straight_card_c.clone(),
+            Card::new("Clubs".into(), "4".into(), 4),
+            Card::new("Clubs".into(), "8".into(), 8),
+            straight_card_d.clone(),
+            straight_card_e.clone(),
+            straight_card_b.clone(),
+        ];
+
+        hand.cards = cards;
+        if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
+            println!("{vh}");
+            assert_eq!(
+                vh,
+                ValidHands::Straight(
+                    straight_card_a,
+                    straight_card_b,
+                    straight_card_c,
+                    straight_card_d,
+                    straight_card_e
+                )
+            );
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn finds_flush() {
+        let mut hand = Hand::of_size(8);
+        let flush_card_a = Card::new("Hearts".into(), "Ace".into(), 14);
+        let flush_card_b = Card::new("Hearts".into(), "Jack".into(), 11);
+        let flush_card_c = Card::new("Hearts".into(), "8".into(), 8);
+        let flush_card_d = Card::new("Hearts".into(), "6".into(), 6);
+        let flush_card_e = Card::new("Hearts".into(), "3".into(), 3);
+        let cards = vec![
+            flush_card_a.clone(),
+            Card::new("Clubs".into(), "Jack".into(), 11),
+            flush_card_c.clone(),
+            Card::new("Clubs".into(), "3".into(), 3),
+            Card::new("Clubs".into(), "8".into(), 8),
+            flush_card_d.clone(),
+            flush_card_e.clone(),
+            flush_card_b.clone(),
+        ];
+
+        hand.cards = cards;
+        if let Some((vh, _)) = ValidHands::has_flush(hand.clone()) {
+            println!("{vh}");
+            assert_eq!(
+                vh,
+                ValidHands::Flush(
+                    flush_card_a,
+                    flush_card_b,
+                    flush_card_c,
+                    flush_card_d,
+                    flush_card_e
+                )
+            );
+        } else {
+            assert!(false);
         }
     }
 }

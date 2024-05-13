@@ -14,9 +14,6 @@ impl Deck {
 
                 for i in 2..15 {
                     match i {
-                        // 0 => continue,
-                        // 1 => continue,
-
                         11 => deck
                             .cards
                             .push(Card::new(suit.clone(), "Jack".to_string(), i)),
