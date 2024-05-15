@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::{hash_set, HashSet}, fmt};
 
 use crate::{card::Card, hand::Hand};
 
@@ -122,9 +122,10 @@ impl ValidHands {
     pub fn has_straight(hand: Hand) -> Option<(ValidHands, Hand)> {
         let mut working_hand = hand.clone();
 
-        // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
         working_hand.sort_by_rank_ace_high();
+        remove_duplicates(&mut working_hand); // Ensure (A, A, A, 2, 3, 3, 4, 5) is picked up as straight.
         
+        // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
         let iter = working_hand.cards.as_slice().windows(5);
         for (idx, cards) in iter.clone().enumerate() {
             if cards[0].value == cards[1].value + 1
@@ -302,6 +303,18 @@ impl ValidHands {
                 ))
             }
             _ => panic!("Unexpected Hand: {confirmed_flush}. Expected: ValidHands::Straight"),
+        }
+    }
+}
+
+fn remove_duplicates(working_hand: &mut Hand) {
+    // (2C, 3H, 3S, 4C, 5C, 6D, 10D, KD) : This hand is a problem due to pair inside the straight.
+    let it = working_hand.clone();
+    let itr = it.cards.windows(4);
+    for (idx, c) in itr.enumerate() {
+        if c[0].value == c[1].value {
+            // println!("{} : {}", c[0], c[1]);
+            working_hand.cards.remove(idx);
         }
     }
 }
