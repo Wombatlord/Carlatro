@@ -4,7 +4,6 @@ use crate::{card::Card, hand::Hand};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValidHands {
-    HighCard(Card),
     Pair(Card, Card),
     TwoPair(Card, Card, Card, Card),
     ThreeOAK(Card, Card, Card),
@@ -18,9 +17,6 @@ pub enum ValidHands {
 impl fmt::Display for ValidHands {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ValidHands::HighCard(card) => {
-                write!(f, "High Card:\n{}\n", card)
-            }
             ValidHands::Pair(c1, c2) => {
                 write!(f, "Pair:\n{}\n{}\n", c1, c2)
             }
@@ -52,12 +48,6 @@ impl fmt::Display for ValidHands {
 }
 
 impl ValidHands {
-    // pub fn has_high_card(hand: Hand) -> Option<(ValidHands, Hand)> {
-    //     let mut working_hand = hand.clone();
-    //     let high_card = working_hand.cards.remove(0);
-    //     Some((ValidHands::HighCard(high_card), working_hand))
-    // }
-
     pub fn has_pair(hand: Hand) -> Option<(ValidHands, Hand)> {
         let mut working_hand = hand.clone();
         let iter = working_hand.cards.as_slice().windows(2);
@@ -134,6 +124,7 @@ impl ValidHands {
 
         // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
         working_hand.sort_by_rank_ace_high();
+        
         let iter = working_hand.cards.as_slice().windows(5);
         for (idx, cards) in iter.clone().enumerate() {
             if cards[0].value == cards[1].value + 1
@@ -270,7 +261,7 @@ impl ValidHands {
         None
     }
 
-    pub fn has_straight_flush(hand: Hand) -> Option<(ValidHands, Hand)> {
+    pub fn has_straight_variant(hand: Hand) -> Option<(ValidHands, Hand)> {
         let working_hand = hand.clone();
         let maybe_straight = Self::has_straight(working_hand);
         if maybe_straight.is_none() {
@@ -291,10 +282,17 @@ impl ValidHands {
         };
 
         // Here we check for a flush
-        let maybe_flush = Self::has_flush(straight_hand);
+        let maybe_flush = Self::has_flush(straight_hand.clone());
         if maybe_flush.is_none() {
-            return None;
+            return Some((ValidHands::Straight(
+                straight_hand.cards[0].clone(),
+                straight_hand.cards[1].clone(),
+                straight_hand.cards[2].clone(),
+                straight_hand.cards[3].clone(),
+                straight_hand.cards[4].clone(),
+            ), left_over));
         }
+        
         let (confirmed_flush, _) = maybe_flush.unwrap();
         match confirmed_flush {
             ValidHands::Flush(card_1, card_2, card_3, card_4, card_5) => {
@@ -346,7 +344,7 @@ mod tests {
         let straight_card_c = Card::new("Clubs".into(), "6".into(), 6);
         let straight_card_d = Card::new("Diamonds".into(), "5".into(), 5);
         let straight_card_e = Card::new("Spades".into(), "4".into(), 4);
-        let cards = vec![
+        hand.cards = vec![
             straight_card_a.clone(),
             Card::new("Clubs".into(), "Jack".into(), 11),
             straight_card_c.clone(),
@@ -357,7 +355,6 @@ mod tests {
             straight_card_b.clone(),
         ];
 
-        hand.cards = cards;
         if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
             println!("{vh}");
             assert_eq!(
@@ -383,7 +380,7 @@ mod tests {
         let straight_card_c = Card::new("Clubs".into(), "Queen".into(), 12);
         let straight_card_d = Card::new("Diamonds".into(), "Jack".into(), 11);
         let straight_card_e = Card::new("Spades".into(), "10".into(), 10);
-        let cards = vec![
+        hand.cards = vec![
             straight_card_a.clone(),
             Card::new("Clubs".into(), "7".into(), 7),
             straight_card_c.clone(),
@@ -394,7 +391,6 @@ mod tests {
             straight_card_b.clone(),
         ];
 
-        hand.cards = cards;
         if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
             println!("{vh}");
             assert_eq!(
@@ -408,7 +404,11 @@ mod tests {
                 )
             );
         } else {
-            assert!(false, "{}", format!("No Straight found. Hand: {:?}", hand.cards));
+            assert!(
+                false,
+                "{}",
+                format!("No Straight found. Hand: {:?}", hand.cards)
+            );
         }
     }
 
@@ -420,7 +420,7 @@ mod tests {
         let straight_card_c = Card::new("Clubs".into(), "3".into(), 12);
         let straight_card_d = Card::new("Diamonds".into(), "4".into(), 11);
         let straight_card_e = Card::new("Spades".into(), "5".into(), 10);
-        let cards = vec![
+        hand.cards = vec![
             straight_card_a.clone(),
             Card::new("Clubs".into(), "7".into(), 7),
             straight_card_c.clone(),
@@ -431,7 +431,6 @@ mod tests {
             straight_card_b.clone(),
         ];
 
-        hand.cards = cards;
         if let Some((vh, _)) = ValidHands::has_straight(hand.clone()) {
             println!("{vh}");
             assert_eq!(

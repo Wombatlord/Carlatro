@@ -30,7 +30,7 @@ impl Hand {
 
     pub fn contains(&self) -> Vec<ValidHands>{
         let mut valid_hands: Vec<ValidHands> = vec![];
-        if let Some((straight_flush, _)) = ValidHands::has_straight_flush(self.clone()) {
+        if let Some((straight_flush, _)) = ValidHands::has_straight_variant(self.clone()) {
             match straight_flush {
                 ValidHands::StraightFlush(_, _, _, _, _) => valid_hands.push(straight_flush),
                 _ => panic!(),
@@ -58,13 +58,6 @@ impl Hand {
             }
         }
 
-        if let Some((straight, _)) = ValidHands::has_straight(self.clone()) {
-            match straight {
-                ValidHands::Straight(_, _, _, _, _) => valid_hands.push(straight),
-                _ => panic!()
-            }
-        }
-
         if let Some((three_oak, _)) = ValidHands::has_three_oak(self.clone()) {
             match three_oak {
                 ValidHands::ThreeOAK(_, _, _) => valid_hands.push(three_oak),
@@ -85,14 +78,6 @@ impl Hand {
                 _ => panic!()
             }
         }
-
-        // Hand always contains high card so this is just 100%
-        // else if let Some((high_card, _)) = ValidHands::has_high_card(self.clone()) {
-        //     match high_card {
-        //         ValidHands::HighCard(_) => valid_hands.push(high_card),
-        //         _ => panic!()
-        //     }
-        // }
 
         return valid_hands;
     }
