@@ -123,10 +123,10 @@ impl ValidHands {
         let mut working_hand = hand.clone();
 
         working_hand.sort_by_rank_ace_high();
-        remove_duplicates(&mut working_hand); // Ensure (A, A, A, 2, 3, 3, 4, 5) is picked up as straight.
+        let mut stripped_hand = remove_duplicates(&working_hand); // Ensure (A, A, A, 2, 3, 3, 4, 5) is picked up as straight.
         
         // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
-        let iter = working_hand.cards.as_slice().windows(5);
+        let iter = stripped_hand.cards.as_slice().windows(5);
         for (idx, cards) in iter.clone().enumerate() {
             if cards[0].value == cards[1].value + 1
                 && cards[1].value == cards[2].value + 1
@@ -135,21 +135,21 @@ impl ValidHands {
             {
                 return Some((
                     ValidHands::Straight(
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
+                        stripped_hand.cards.remove(idx),
+                        stripped_hand.cards.remove(idx),
+                        stripped_hand.cards.remove(idx),
+                        stripped_hand.cards.remove(idx),
+                        stripped_hand.cards.remove(idx),
                     ),
-                    working_hand,
+                    stripped_hand,
                 ));
             }
         }
 
         // check for A-2-3-4-5
-        working_hand.sort_by_rank_ace_low();
-        if working_hand.cards[0].rank == "Ace" {
-            let iter = working_hand.cards.as_slice().windows(5);
+        stripped_hand.sort_by_rank_ace_low();
+        if stripped_hand.cards[0].rank == "Ace" {
+            let iter = stripped_hand.cards.as_slice().windows(5);
             for (idx, cards) in iter.enumerate() {
                 if cards[0].rank == "Ace"
                     && cards[0].alt_value == cards[1].value - 1
@@ -159,13 +159,13 @@ impl ValidHands {
                 {
                     return Some((
                         ValidHands::Straight(
-                            working_hand.cards.remove(idx),
-                            working_hand.cards.remove(idx),
-                            working_hand.cards.remove(idx),
-                            working_hand.cards.remove(idx),
-                            working_hand.cards.remove(idx),
+                            stripped_hand.cards.remove(idx),
+                            stripped_hand.cards.remove(idx),
+                            stripped_hand.cards.remove(idx),
+                            stripped_hand.cards.remove(idx),
+                            stripped_hand.cards.remove(idx),
                         ),
-                        working_hand,
+                        stripped_hand,
                     ));
                 }
             }
@@ -307,16 +307,19 @@ impl ValidHands {
     }
 }
 
-fn remove_duplicates(working_hand: &mut Hand) {
+fn remove_duplicates(working_hand: &Hand) -> Hand {
     // (2C, 3H, 3S, 4C, 5C, 6D, 10D, KD) : This hand is a problem due to pair inside the straight.
-    let it = working_hand.clone();
-    let itr = it.cards.windows(4);
-    for (idx, c) in itr.enumerate() {
-        if c[0].value == c[1].value {
-            // println!("{} : {}", c[0], c[1]);
-            working_hand.cards.remove(idx);
+    let mut stripped = Hand::of_size(8);
+    let mut prev = Card::blank();
+    for c in working_hand.clone().cards {
+        if c.value != prev.value {
+            stripped.cards.push(c.clone());
         }
+        prev = c;
     }
+
+    stripped
+
 }
 
 #[cfg(test)]
@@ -351,18 +354,19 @@ mod tests {
 
     #[test]
     fn finds_middle_straight_ace_high_ordering() {
+        // We only care about card values in this test, not suits.
         let mut hand = Hand::of_size(8);
-        let straight_card_a = Card::new("Hearts".into(), "8".into(), 8);
-        let straight_card_b = Card::new("Spades".into(), "7".into(), 7);
-        let straight_card_c = Card::new("Clubs".into(), "6".into(), 6);
-        let straight_card_d = Card::new("Diamonds".into(), "5".into(), 5);
-        let straight_card_e = Card::new("Spades".into(), "4".into(), 4);
+        let straight_card_a = Card::new("".into(), "8".into(), 8);
+        let straight_card_b = Card::new("".into(), "7".into(), 7);
+        let straight_card_c = Card::new("".into(), "6".into(), 6);
+        let straight_card_d = Card::new("".into(), "5".into(), 5);
+        let straight_card_e = Card::new("".into(), "4".into(), 4);
         hand.cards = vec![
             straight_card_a.clone(),
-            Card::new("Clubs".into(), "Jack".into(), 11),
+            Card::new("".into(), "Jack".into(), 11),
             straight_card_c.clone(),
-            Card::new("Diamonds".into(), "Jack".into(), 11),
-            Card::new("Clubs".into(), "King".into(), 13),
+            Card::new("".into(), "Jack".into(), 11),
+            Card::new("".into(), "King".into(), 13),
             straight_card_d.clone(),
             straight_card_e.clone(),
             straight_card_b.clone(),
@@ -387,18 +391,19 @@ mod tests {
 
     #[test]
     fn finds_ace_high_straight() {
+        // We only care about card values in this test, not suits.
         let mut hand = Hand::of_size(8);
-        let straight_card_a = Card::new("Hearts".into(), "Ace".into(), 14);
-        let straight_card_b = Card::new("Spades".into(), "King".into(), 13);
-        let straight_card_c = Card::new("Clubs".into(), "Queen".into(), 12);
-        let straight_card_d = Card::new("Diamonds".into(), "Jack".into(), 11);
-        let straight_card_e = Card::new("Spades".into(), "10".into(), 10);
+        let straight_card_a = Card::new("".into(), "Ace".into(), 14);
+        let straight_card_b = Card::new("".into(), "King".into(), 13);
+        let straight_card_c = Card::new("".into(), "Queen".into(), 12);
+        let straight_card_d = Card::new("".into(), "Jack".into(), 11);
+        let straight_card_e = Card::new("".into(), "10".into(), 10);
         hand.cards = vec![
             straight_card_a.clone(),
-            Card::new("Clubs".into(), "7".into(), 7),
+            Card::new("".into(), "7".into(), 7),
             straight_card_c.clone(),
-            Card::new("Clubs".into(), "4".into(), 4),
-            Card::new("Clubs".into(), "3".into(), 3),
+            Card::new("".into(), "4".into(), 4),
+            Card::new("".into(), "3".into(), 3),
             straight_card_d.clone(),
             straight_card_e.clone(),
             straight_card_b.clone(),
@@ -427,12 +432,13 @@ mod tests {
 
     #[test]
     fn finds_ace_low_straight() {
+        // We only care about card values in this test, not suits.
         let mut hand = Hand::of_size(8);
-        let straight_card_a = Card::new("Hearts".into(), "Ace".into(), 14);
-        let straight_card_b = Card::new("Spades".into(), "2".into(), 13);
-        let straight_card_c = Card::new("Clubs".into(), "3".into(), 12);
-        let straight_card_d = Card::new("Diamonds".into(), "4".into(), 11);
-        let straight_card_e = Card::new("Spades".into(), "5".into(), 10);
+        let straight_card_a = Card::new("".into(), "Ace".into(), 14);
+        let straight_card_b = Card::new("".into(), "2".into(), 13);
+        let straight_card_c = Card::new("".into(), "3".into(), 12);
+        let straight_card_d = Card::new("".into(), "4".into(), 11);
+        let straight_card_e = Card::new("".into(), "5".into(), 10);
         hand.cards = vec![
             straight_card_a.clone(),
             Card::new("Clubs".into(), "7".into(), 7),
