@@ -54,24 +54,24 @@ impl Hand {
         suit_map
     }
 
+    pub fn held_suits_as_hands(&self) -> HashMap<Suits, Hand> {
+        let mut suit_map: HashMap<Suits, Hand> = HashMap::new();
+        for c in &self.cards {
+            suit_map
+                .entry(c.suit)
+                .or_insert(Hand::default())
+                .cards
+                .push(c.clone());
+        }
+        suit_map
+    }
+
     pub fn get_run_length_hashmap(&self) -> HashMap<usize, usize> {
         // Provides unordered run length encoding if card frequency is the only thing we care about.
         // eg. pairs, x of a kind etc.
         let mut hm = HashMap::new();
-
-        let Some(&Card {
-            value: mut largest_card_value,
-            ..
-        }) = self.cards.first()
-        else {
-            return hm;
-        };
-
-        for card in self.cards.iter().skip(1) {
-            if card.value > largest_card_value || card.value == largest_card_value {
-                hm.entry(card.value).and_modify(|rl| *rl += 1).or_insert(1);
-                largest_card_value = card.value;
-            }
+        for card in self.cards.iter() {
+            hm.entry(card.value).and_modify(|rl| *rl += 1).or_insert(1);
         }
 
         hm
@@ -80,7 +80,7 @@ impl Hand {
     pub fn get_run_length_tuples(&self, ace_high: bool) -> Vec<(usize, usize)> {
         // Provides run length encoding for the hand in card value sequential order.
         // important for checking for straights.
-        
+
         let ace_hi = |card_val: usize| match (ace_high, card_val) {
             // ensures Ace value corresponds to high or low sorting.
             (true, 14) => 14,
@@ -118,49 +118,42 @@ impl Hand {
 
     pub fn contains(&self) -> Vec<ValidHands> {
         let mut valid_hands: Vec<ValidHands> = vec![];
-        if let Some((straight_flush, _)) = ValidHands::has_straight_variant(self.clone()) {
-            match straight_flush {
-                ValidHands::StraightFlush(_, _, _, _, _) => valid_hands.push(straight_flush),
-                _ => panic!(),
-            };
-        }
 
-        if let Some((four_oak, _)) = ValidHands::has_four_oak(self.clone()) {
+        // Straight Flush here
+
+        if let Some((four_oak, _)) = ValidHands::has_n_of_a_kind(self.clone(), 4) {
             match four_oak {
                 ValidHands::FourOAK(_, _, _, _) => valid_hands.push(four_oak),
                 _ => panic!(),
             }
         }
 
-        if let Some((full_house, _)) = ValidHands::has_full_house(self.clone()) {
-            match full_house {
-                ValidHands::FullHouse(_, _, _, _, _) => valid_hands.push(full_house),
-                _ => panic!(),
-            }
-        }
+        // Full House Here
 
-        if let Some((flush, _)) = ValidHands::has_flush(self.clone()) {
+        if let Some((flush, _)) = ValidHands::detect_flush(self.clone()) {
             match flush {
                 ValidHands::Flush(_, _, _, _, _) => valid_hands.push(flush),
                 _ => panic!(),
             }
         }
 
-        if let Some((three_oak, _)) = ValidHands::has_three_oak(self.clone()) {
+        if let Some((straight, _)) = ValidHands::has_straight(self.clone()) {
+            match straight {
+                ValidHands::Straight(_, _, _, _, _) => valid_hands.push(straight),
+                _ => panic!(),
+            };
+        }
+
+        if let Some((three_oak, _)) = ValidHands::has_n_of_a_kind(self.clone(), 3) {
             match three_oak {
                 ValidHands::ThreeOAK(_, _, _) => valid_hands.push(three_oak),
                 _ => panic!(),
             }
         }
 
-        if let Some((two_pair, _)) = ValidHands::has_two_pair(self.clone()) {
-            match two_pair {
-                ValidHands::TwoPair(_, _, _, _) => valid_hands.push(two_pair),
-                _ => panic!(),
-            }
-        }
+        // Two Pair Here
 
-        if let Some((pair, _)) = ValidHands::has_pair(self.clone()) {
+        if let Some((pair, _)) = ValidHands::has_n_of_a_kind(self.clone(), 2) {
             match pair {
                 ValidHands::Pair(_, _) => valid_hands.push(pair),
                 _ => panic!(),
@@ -192,7 +185,10 @@ impl Hand {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::{card::Card, suit::Suits};
+    use crate::{
+        card::Card,
+        suit::{Ranks, Suits},
+    };
 
     use super::Hand;
 
@@ -200,14 +196,14 @@ mod tests {
     pub fn suit_buckets() {
         let mut hand = Hand::of_size(8);
         let cards = vec![
-            Card::new(crate::suit::Suits::Spades, "Ace".into(), 14),
-            Card::new(crate::suit::Suits::Spades, "10".into(), 10),
-            Card::new(crate::suit::Suits::Spades, "9".into(), 9),
-            Card::new(crate::suit::Suits::Hearts, "Ace".into(), 14),
-            Card::new(crate::suit::Suits::Hearts, "10".into(), 10),
-            Card::new(crate::suit::Suits::Hearts, "9".into(), 9),
-            Card::new(crate::suit::Suits::Clubs, "Ace".into(), 14),
-            Card::new(crate::suit::Suits::Diamonds, "Ace".into(), 14),
+            Card::new(Suits::Spades, Ranks::Ace, 14),
+            Card::new(Suits::Spades, Ranks::Ten, 10),
+            Card::new(Suits::Spades, Ranks::Nine, 9),
+            Card::new(Suits::Hearts, Ranks::Ace, 14),
+            Card::new(Suits::Hearts, Ranks::Ten, 10),
+            Card::new(Suits::Hearts, Ranks::Nine, 9),
+            Card::new(Suits::Clubs, Ranks::Ace, 14),
+            Card::new(Suits::Diamonds, Ranks::Ace, 14),
         ];
         hand.cards = cards;
         let mut h = HashMap::new();

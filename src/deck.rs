@@ -1,4 +1,4 @@
-use crate::{card::Card, hand::Hand};
+use crate::{card::Card, hand::Hand, suit::Ranks};
 
 pub struct Deck {
     pub cards: Vec<Card>,
@@ -16,18 +16,18 @@ impl Deck {
                     match i {
                         11 => deck
                             .cards
-                            .push(Card::new(suit.clone(), "Jack".to_string(), i)),
+                            .push(Card::new(suit.clone(), Ranks::Jack, i)),
                         12 => deck
                             .cards
-                            .push(Card::new(suit.clone(), "Queen".to_string(), i)),
+                            .push(Card::new(suit.clone(), Ranks::Queen, i)),
                         13 => deck
                             .cards
-                            .push(Card::new(suit.clone(), "King".to_string(), i)),
+                            .push(Card::new(suit.clone(), Ranks::King, i)),
                         14 => deck
                             .cards
-                            .push(Card::new(suit.clone(), "Ace".to_string(), i)),
+                            .push(Card::new(suit.clone(), Ranks::Ace, i)),
 
-                        _ => deck.cards.push(Card::new(suit.clone(), i.to_string(), i)),
+                        _ => deck.cards.push(Card::new(suit.clone(), Ranks::get_by_value(i), i)),
                     };
                 }
             }

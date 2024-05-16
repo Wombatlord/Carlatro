@@ -46,7 +46,7 @@ fn main() {
         //     }
         // }
 
-        let valid_hand = ValidHands::has_rle_straights(hand.clone());
+        let valid_hand = ValidHands::has_straight(hand.clone());
         if valid_hand.is_some() {
             let (v, _) = valid_hand.unwrap();
             match v {

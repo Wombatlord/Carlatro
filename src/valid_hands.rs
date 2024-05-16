@@ -3,7 +3,11 @@ use std::{
     fmt,
 };
 
-use crate::{card::Card, hand::Hand};
+use crate::{
+    card::{self, Card},
+    hand::Hand,
+    suit::Ranks,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValidHands {
@@ -51,93 +55,126 @@ impl fmt::Display for ValidHands {
 }
 
 impl ValidHands {
-    pub fn has_pair(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut working_hand = hand.clone();
-        let iter = working_hand.cards.as_slice().windows(2);
-
-        for (idx, cards) in iter.enumerate() {
-            if cards[0].value == cards[1].value {
-                return Some((
-                    ValidHands::Pair(
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                    ),
-                    working_hand,
-                ));
+    pub fn has_n_of_a_kind(hand: Hand, n: usize) -> Option<(ValidHands, Hand)> {
+        let mut detected_n_oak = None;
+        let rle = hand.get_run_length_hashmap();
+        println!("{rle:?}");
+        for (_card_value, amount_in_hand) in rle {
+            if amount_in_hand == n {
+                match n {
+                    2 => {
+                        detected_n_oak =
+                            Some((ValidHands::Pair(Card::blank(), Card::blank()), hand.clone()))
+                    }
+                    3 => {
+                        detected_n_oak = Some((
+                            ValidHands::ThreeOAK(Card::blank(), Card::blank(), Card::blank()),
+                            hand.clone(),
+                        ))
+                    }
+                    4 => {
+                        detected_n_oak = Some((
+                            ValidHands::FourOAK(
+                                Card::blank(),
+                                Card::blank(),
+                                Card::blank(),
+                                Card::blank(),
+                            ),
+                            hand.clone(),
+                        ))
+                    }
+                    _ => continue,
+                }
             }
         }
 
-        None
+        detected_n_oak
     }
 
     pub fn has_two_pair(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut paired_cards: Vec<Card> = vec![];
-        if let Some((first_pair, leftover)) = Self::has_pair(hand.clone()) {
-            match first_pair {
-                ValidHands::Pair(first, second) => {
-                    paired_cards.push(first);
-                    paired_cards.push(second)
-                }
-                _ => panic!(),
-            }
-
-            if let Some((sp, final_leftover)) = Self::has_pair(leftover) {
-                match sp {
-                    ValidHands::Pair(first, second) => {
-                        return Some((
-                            ValidHands::TwoPair(
-                                paired_cards.remove(0),
-                                paired_cards.remove(0),
-                                first,
-                                second,
-                            ),
-                            final_leftover,
-                        ));
-                    }
-                    _ => panic!(),
-                };
-            }
-        }
-        return None;
-    }
-
-    pub fn has_three_oak(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut working_hand = hand.clone();
-
-        let iter = working_hand.cards.as_slice().windows(3);
-
-        for (idx, cards) in iter.enumerate() {
-            if cards[0].value == cards[1].value && cards[0].value == cards[2].value {
-                return Some((
-                    ValidHands::ThreeOAK(
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                    ),
-                    working_hand,
-                ));
-            }
-        }
-
-        None
-    }
-
-    fn detect_three_oak(mut hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut detected_three_oak = None;
+        let mut detected_two_pair = None;
         let rle = hand.get_run_length_hashmap();
-        for (_card_value, amount_in_hand) in rle {
-            if amount_in_hand == 3 {
-                detected_three_oak = Some((
-                    ValidHands::ThreeOAK(Card::blank(), Card::blank(), Card::blank()),
-                    hand.clone(),
-                ));
+        let mut pair_a = false;
+        let mut pair_b = false;
+
+        for (_, v) in rle {
+            if pair_a == false && v >= 2 {
+                pair_a = true
+            } else if pair_a == true && v >= 2 {
+                pair_b = true
             }
         }
 
-        detected_three_oak
+        match (pair_a, pair_b) {
+            (true, true) => {
+                detected_two_pair = Some((
+                    ValidHands::TwoPair(Card::blank(), Card::blank(), Card::blank(), Card::blank()),
+                    hand,
+                ))
+            }
+            _ => (),
+        }
+
+        detected_two_pair
     }
 
-    fn detect_rle_straight(hand: Hand, ace_high: bool) -> Option<(ValidHands, Hand)> {
+    pub fn has_full_house(hand: Hand) -> Option<(ValidHands, Hand)> {
+        let mut detected_full_house = None;
+
+        let rle = hand.get_run_length_hashmap();
+        let mut found_pair = false;
+        let mut found_trio = false;
+
+        for (_, v) in rle {
+            if v >= 3 {
+                found_trio = true;
+            } else if v >= 2 {
+                found_pair = true;
+            }
+        }
+
+        if found_pair && found_trio {
+            detected_full_house = Some((
+                ValidHands::FullHouse(
+                    Card::blank(),
+                    Card::blank(),
+                    Card::blank(),
+                    Card::blank(),
+                    Card::blank(),
+                ),
+                hand,
+            ))
+        }
+
+        detected_full_house
+    }
+
+    pub fn has_straight_flush(hand: Hand) -> Option<(ValidHands, Hand)> {
+        let mut detected_straight_flush = None;
+        let suit_map = hand.held_suits_as_hands();
+        for (_suit, suited_hand) in suit_map {
+            if suited_hand.cards.len() >= 5 {
+                let rle_straight = Self::has_straight(suited_hand.clone());
+
+                if rle_straight.is_some() {
+                    detected_straight_flush = Some((
+                        ValidHands::StraightFlush(
+                            suited_hand.cards[0],
+                            suited_hand.cards[1],
+                            suited_hand.cards[2],
+                            suited_hand.cards[3],
+                            suited_hand.cards[4],
+                        ),
+                        hand.clone(),
+                    ));
+                }
+            }
+        }
+
+        detected_straight_flush
+    }
+
+    fn detect_straight(hand: Hand, ace_high: bool) -> Option<(ValidHands, Hand)> {
         let mut detected_straight = None;
         let rle_tuples = hand.get_run_length_tuples(ace_high);
 
@@ -171,76 +208,19 @@ impl ValidHands {
         detected_straight
     }
 
-    pub fn has_rle_straights(mut hand: Hand) -> Option<(ValidHands, Hand)> {
+    pub fn has_straight(mut hand: Hand) -> Option<(ValidHands, Hand)> {
         hand.sort_by_rank_ace_high();
-        let mut detected = Self::detect_rle_straight(hand.clone(), true);
+        let mut detected = Self::detect_straight(hand.clone(), true);
 
         if detected.is_none() && hand.contains_ace() {
             hand.sort_by_rank_ace_low();
-            detected = Self::detect_rle_straight(hand, false);
+            detected = Self::detect_straight(hand, false);
         }
 
         detected
     }
 
-    pub fn has_straight(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut working_hand = hand.clone();
-
-        working_hand.sort_by_rank_ace_high();
-
-        // Ensure (A, A, A, 2, 3, 3, 4, 5) is picked up as straight.
-        let (mut stripped_hand, dupes) = remove_duplicates(&working_hand);
-
-        // check for all straights, ace high ordering (A,K,Q,J,10 ... 2)
-        let iter = stripped_hand.cards.as_slice().windows(5);
-        for (idx, cards) in iter.clone().enumerate() {
-            if cards[0].value == cards[1].value - 1
-                && cards[1].value == cards[2].value - 1
-                && cards[2].value == cards[3].value - 1
-                && cards[3].value == cards[4].value - 1
-            {
-                return Some((
-                    ValidHands::Straight(
-                        stripped_hand.cards.remove(idx),
-                        stripped_hand.cards.remove(idx),
-                        stripped_hand.cards.remove(idx),
-                        stripped_hand.cards.remove(idx),
-                        stripped_hand.cards.remove(idx),
-                    ),
-                    dupes,
-                ));
-            }
-        }
-
-        // check for A-2-3-4-5
-        stripped_hand.sort_by_rank_ace_low();
-        if stripped_hand.cards[0].rank == "Ace" {
-            let iter = stripped_hand.cards.as_slice().windows(5);
-            for (idx, cards) in iter.enumerate() {
-                if cards[0].rank == "Ace"
-                    && cards[0].alt_value == cards[1].value - 1
-                    && cards[1].value == cards[2].value - 1
-                    && cards[2].value == cards[3].value - 1
-                    && cards[3].value == cards[4].value - 1
-                {
-                    return Some((
-                        ValidHands::Straight(
-                            stripped_hand.cards.remove(idx),
-                            stripped_hand.cards.remove(idx),
-                            stripped_hand.cards.remove(idx),
-                            stripped_hand.cards.remove(idx),
-                            stripped_hand.cards.remove(idx),
-                        ),
-                        stripped_hand,
-                    ));
-                }
-            }
-        }
-
-        None
-    }
-
-    pub fn has_flush(hand: Hand) -> Option<(ValidHands, Hand)> {
+    pub fn detect_flush(hand: Hand) -> Option<(ValidHands, Hand)> {
         let suit_map = hand.held_suits();
 
         for (suit, v) in suit_map.clone() {
@@ -260,127 +240,13 @@ impl ValidHands {
 
         None
     }
-
-    pub fn has_full_house(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let working_hand = hand.clone();
-        let three_oak_and_leftover = Self::has_three_oak(working_hand);
-        if three_oak_and_leftover.is_none() {
-            return None;
-        }
-
-        let (three_oak, left_over) = three_oak_and_leftover.unwrap();
-        let pair_and_leftover = Self::has_pair(left_over);
-        if pair_and_leftover.is_none() {
-            return None;
-        }
-        let (pair, left_over) = pair_and_leftover.unwrap();
-        match three_oak {
-            ValidHands::ThreeOAK(a, b, c) => match pair {
-                ValidHands::Pair(d, e) => {
-                    return Some((ValidHands::FullHouse(a, b, c, d, e), left_over))
-                }
-                _ => panic!("Unexpected Hand: {pair}, expected: ValidHands::Pair"),
-            },
-            _ => panic!("Unexpected Hand: {three_oak}, expected: ValidHands::ThreeOAK"),
-        }
-    }
-
-    pub fn has_four_oak(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let mut working_hand = hand.clone();
-
-        let iter = working_hand.cards.as_slice().windows(4);
-
-        for (idx, cards) in iter.enumerate() {
-            if cards[0].value == cards[1].value
-                && cards[0].value == cards[2].value
-                && cards[0].value == cards[3].value
-            {
-                return Some((
-                    ValidHands::FourOAK(
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                        working_hand.cards.remove(idx),
-                    ),
-                    working_hand,
-                ));
-            }
-        }
-
-        None
-    }
-
-    pub fn has_straight_variant(hand: Hand) -> Option<(ValidHands, Hand)> {
-        let working_hand = hand.clone();
-        let maybe_straight = Self::has_straight(working_hand);
-        if maybe_straight.is_none() {
-            return None;
-        }
-        let (confirmed_straight, left_over) = maybe_straight.unwrap();
-
-        // Here we check for a straight
-        let straight_hand = match confirmed_straight {
-            ValidHands::Straight(card_1, card_2, card_3, card_4, card_5) => {
-                let hand = Hand {
-                    cards: vec![card_1, card_2, card_3, card_4, card_5],
-                    size: 5,
-                };
-                hand
-            }
-            _ => panic!("Unexpected Hand: {confirmed_straight}. Expected: ValidHands::Straight"),
-        };
-
-        //----------------------------
-        // Here we check for a flush
-        let maybe_flush = Self::has_flush(straight_hand.clone());
-        if maybe_flush.is_none() {
-            return Some((
-                ValidHands::Straight(
-                    straight_hand.cards[0].clone(),
-                    straight_hand.cards[1].clone(),
-                    straight_hand.cards[2].clone(),
-                    straight_hand.cards[3].clone(),
-                    straight_hand.cards[4].clone(),
-                ),
-                left_over,
-            ));
-        }
-
-        let (confirmed_flush, _) = maybe_flush.unwrap();
-        match confirmed_flush {
-            ValidHands::Flush(card_1, card_2, card_3, card_4, card_5) => {
-                return Some((
-                    ValidHands::StraightFlush(card_1, card_2, card_3, card_4, card_5),
-                    left_over,
-                ))
-            }
-            _ => panic!("Unexpected Hand: {confirmed_flush}. Expected: ValidHands::Straight"),
-        }
-    }
-}
-
-fn remove_duplicates(working_hand: &Hand) -> (Hand, Hand) {
-    // (2C, 3H, 3S, 4C, 5C, 6D, 10D, KD) : This hand is a problem due to pair inside the straight.
-    let mut stripped = Hand::of_size(8);
-    let mut dupes = Hand::of_size(8);
-    let mut prev = Card::blank();
-    for c in working_hand.clone().cards {
-        if c.value != prev.value {
-            stripped.cards.push(c.clone());
-        } else {
-            dupes.cards.push(c.clone())
-        }
-        prev = c;
-    }
-
-    (stripped, dupes)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{card::Card, hand::Hand, suit::Suits, valid_hands::ValidHands};
     #[test]
-    fn finds_three_oak() {
+    fn finds_n_of_a_kind() {
         let hands = vec![
             // this case fails if run length encoding fails to catch matching highest card values
             Hand {
@@ -388,22 +254,98 @@ mod tests {
                     Card::from_card_value(14, Some(Suits::Hearts)),
                     Card::from_card_value(14, Some(Suits::Spades)),
                     Card::from_card_value(14, Some(Suits::Clubs)),
-                    Card::from_card_value(3, Some(Suits::Spades)),
-                    Card::from_card_value(4, Some(Suits::Spades)),
+                    Card::from_card_value(10, Some(Suits::Spades)),
+                    Card::from_card_value(12, Some(Suits::Spades)),
                     Card::from_card_value(5, Some(Suits::Spades)),
                     Card::from_card_value(6, Some(Suits::Spades)),
                     Card::from_card_value(11, Some(Suits::Hearts)),
                 ],
                 size: 8,
             },
-            // this case fails if run length encoding fails to catch matching highest card values
+            // this case fails if run length encoding fails to catch pair
             Hand {
                 cards: vec![
                     Card::from_card_value(7, Some(Suits::Hearts)),
                     Card::from_card_value(7, Some(Suits::Spades)),
-                    Card::from_card_value(7, Some(Suits::Clubs)),
                     Card::from_card_value(3, Some(Suits::Spades)),
                     Card::from_card_value(4, Some(Suits::Spades)),
+                    Card::from_card_value(5, Some(Suits::Spades)),
+                    Card::from_card_value(6, Some(Suits::Spades)),
+                    Card::from_card_value(12, Some(Suits::Clubs)),
+                    Card::from_card_value(11, Some(Suits::Hearts)),
+                ],
+                size: 8,
+            },
+            // this case fails if run length encoding fails to catch 4oak
+            Hand {
+                cards: vec![
+                    Card::from_card_value(7, Some(Suits::Hearts)),
+                    Card::from_card_value(7, Some(Suits::Spades)),
+                    Card::from_card_value(7, Some(Suits::Spades)),
+                    Card::from_card_value(7, Some(Suits::Spades)),
+                    Card::from_card_value(5, Some(Suits::Spades)),
+                    Card::from_card_value(6, Some(Suits::Spades)),
+                    Card::from_card_value(12, Some(Suits::Clubs)),
+                    Card::from_card_value(11, Some(Suits::Hearts)),
+                ],
+                size: 8,
+            },
+        ];
+
+        for (idx, mut hand) in hands.into_iter().enumerate() {
+            hand.sort_by_rank_ace_high();
+            match idx {
+                0 => {
+                    assert_eq!(
+                        ValidHands::has_n_of_a_kind(hand.clone(), 3),
+                        Some((
+                            ValidHands::ThreeOAK(Card::blank(), Card::blank(), Card::blank()),
+                            hand
+                        )),
+                        "Failed on case {}",
+                        idx
+                    )
+                }
+                1 => {
+                    assert_eq!(
+                        ValidHands::has_n_of_a_kind(hand.clone(), 2),
+                        Some((ValidHands::Pair(Card::blank(), Card::blank()), hand)),
+                        "Failed on case {}",
+                        idx
+                    )
+                }
+                2 => {
+                    assert_eq!(
+                        ValidHands::has_n_of_a_kind(hand.clone(), 4),
+                        Some((
+                            ValidHands::FourOAK(
+                                Card::blank(),
+                                Card::blank(),
+                                Card::blank(),
+                                Card::blank()
+                            ),
+                            hand
+                        )),
+                        "Failed on case {}",
+                        idx
+                    )
+                }
+                _ => panic!("Index out of range. Missing test cases."),
+            }
+        }
+    }
+
+    #[test]
+    fn finds_two_pair() {
+        let hands = vec![
+            // this case fails if run length encoding fails to catch matching highest card values
+            Hand {
+                cards: vec![
+                    Card::from_card_value(14, Some(Suits::Hearts)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                    Card::from_card_value(10, Some(Suits::Clubs)),
+                    Card::from_card_value(10, Some(Suits::Spades)),
+                    Card::from_card_value(12, Some(Suits::Spades)),
                     Card::from_card_value(5, Some(Suits::Spades)),
                     Card::from_card_value(6, Some(Suits::Spades)),
                     Card::from_card_value(11, Some(Suits::Hearts)),
@@ -412,15 +354,15 @@ mod tests {
             },
         ];
 
-        for mut hand in hands {
-            hand.sort_by_rank_ace_high();
-
+        for (idx, hand) in hands.into_iter().enumerate() {
             assert_eq!(
-                ValidHands::detect_three_oak(hand.clone()),
+                ValidHands::has_two_pair(hand.clone()),
                 Some((
-                    ValidHands::ThreeOAK(Card::blank(), Card::blank(), Card::blank(),),
+                    ValidHands::TwoPair(Card::blank(), Card::blank(), Card::blank(), Card::blank(),),
                     hand
-                ))
+                )),
+                "Failed on case {}",
+                idx
             )
         }
     }
@@ -442,7 +384,7 @@ mod tests {
         };
 
         assert_eq!(
-            ValidHands::has_flush(hand.clone()),
+            ValidHands::detect_flush(hand.clone()),
             Some((
                 ValidHands::Flush(
                     hand.cards[0].clone(),
@@ -457,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn finds_rle_straight() {
+    fn finds_straight() {
         let hands = vec![
             // this case fails if check is sensitive to card value duplication
             Hand {
@@ -504,7 +446,7 @@ mod tests {
         ];
         for (idx, hand) in hands.into_iter().enumerate() {
             assert_eq!(
-                ValidHands::has_rle_straights(hand.clone()),
+                ValidHands::has_straight(hand.clone()),
                 Some((
                     ValidHands::Straight(
                         Card::blank(),
@@ -512,6 +454,108 @@ mod tests {
                         Card::blank(),
                         Card::blank(),
                         Card::blank(),
+                    ),
+                    hand,
+                )),
+                "Failed on case {}",
+                idx
+            );
+        }
+    }
+
+    #[test]
+    fn finds_full_house() {
+        let hands = vec![
+            // this case fails if check is sensitive to card value duplication
+            Hand {
+                cards: vec![
+                    Card::from_card_value(4, Some(Suits::Hearts)),
+                    Card::from_card_value(4, Some(Suits::Hearts)),
+                    Card::from_card_value(7, Some(Suits::Hearts)),
+                    Card::from_card_value(8, Some(Suits::Spades)),
+                    Card::from_card_value(9, Some(Suits::Spades)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                ],
+                size: 8,
+            },
+        ];
+        for (idx, hand) in hands.into_iter().enumerate() {
+            assert_eq!(
+                ValidHands::has_full_house(hand.clone()),
+                Some((
+                    ValidHands::FullHouse(
+                        Card::blank(),
+                        Card::blank(),
+                        Card::blank(),
+                        Card::blank(),
+                        Card::blank(),
+                    ),
+                    hand,
+                )),
+                "Failed on case {}",
+                idx
+            );
+        }
+    }
+
+    #[test]
+    fn finds_straight_flush() {
+        let hands = vec![
+            // this case fails if check is sensitive to card value duplication
+            Hand {
+                cards: vec![
+                    Card::from_card_value(2, Some(Suits::Spades)),
+                    Card::from_card_value(3, Some(Suits::Spades)),
+                    Card::from_card_value(4, Some(Suits::Spades)),
+                    Card::from_card_value(5, Some(Suits::Spades)),
+                    Card::from_card_value(6, Some(Suits::Spades)),
+                    Card::from_card_value(3, Some(Suits::Hearts)),
+                    Card::from_card_value(4, Some(Suits::Hearts)),
+                    Card::from_card_value(4, Some(Suits::Hearts)),
+                ],
+                size: 8,
+            },
+            // this case fails if ace-low is not detected as start of straight
+            Hand {
+                cards: vec![
+                    Card::from_card_value(2, Some(Suits::Spades)),
+                    Card::from_card_value(3, Some(Suits::Spades)),
+                    Card::from_card_value(4, Some(Suits::Spades)),
+                    Card::from_card_value(5, Some(Suits::Spades)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                    Card::from_card_value(7, Some(Suits::Hearts)),
+                    Card::from_card_value(8, Some(Suits::Hearts)),
+                    Card::from_card_value(9, Some(Suits::Hearts)),
+                ],
+                size: 8,
+            },
+            // this case fails if ace-high is not detected as end of straight
+            Hand {
+                cards: vec![
+                    Card::from_card_value(10, Some(Suits::Spades)),
+                    Card::from_card_value(11, Some(Suits::Spades)),
+                    Card::from_card_value(12, Some(Suits::Spades)),
+                    Card::from_card_value(13, Some(Suits::Spades)),
+                    Card::from_card_value(14, Some(Suits::Spades)),
+                    Card::from_card_value(4, Some(Suits::Hearts)),
+                    Card::from_card_value(5, Some(Suits::Hearts)),
+                    Card::from_card_value(6, Some(Suits::Hearts)),
+                ],
+                size: 8,
+            },
+        ];
+        for (idx, hand) in hands.into_iter().enumerate() {
+            assert_eq!(
+                ValidHands::has_straight_flush(hand.clone()),
+                Some((
+                    ValidHands::StraightFlush(
+                        hand.cards[0],
+                        hand.cards[1],
+                        hand.cards[2],
+                        hand.cards[3],
+                        hand.cards[4],
                     ),
                     hand,
                 )),
