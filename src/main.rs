@@ -2,6 +2,7 @@ mod card;
 mod deck;
 mod hand;
 mod valid_hands;
+mod suit;
 
 use deck::Deck;
 use hand::Hand;
@@ -9,7 +10,7 @@ use rand::seq::SliceRandom;
 use valid_hands::ValidHands;
 
 fn main() {
-    let samples = 1_000_000usize;
+    let samples = 100_000usize;
     let mut straight_flush = 0usize;
     let mut four_oak = 0usize;
     let mut full_house = 0usize;
@@ -45,12 +46,12 @@ fn main() {
         //     }
         // }
 
-        let valid_hand = ValidHands::has_straight_variant(hand.clone());
+        let valid_hand = ValidHands::has_rle_straights(hand.clone());
         if valid_hand.is_some() {
             let (v, _) = valid_hand.unwrap();
             match v {
                 ValidHands::Straight(_, _, _, _, _) => straight += 1,
-                ValidHands::StraightFlush(_, _, _, _, _) => straight_flush += 1,
+                // ValidHands::StraightFlush(_, _, _, _, _) => straight_flush += 1,
                 _ => panic!()
             }
             // println!("\n---HIT---\n");
@@ -60,8 +61,8 @@ fn main() {
 
     let p = (straight as f32 / samples as f32) * 100.;
     println!("Found Straight in {p}% of first 8 card draw.");
-    let p = (straight_flush as f32 / samples as f32) * 100.;
-    println!("Found Straight Flush in {p}% of first 8 card draw.");
+    // let p = (straight_flush as f32 / samples as f32) * 100.;
+    // println!("Found Straight Flush in {p}% of first 8 card draw.");
 
     // output_stats(
     //     samples,
